@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<head>
+
+    <title>Königsfelden Ortschaften</title>
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+    <script src="http://d3js.org/topojson.v1.min.js"></script>
+    
+    <style>
+        
+    body {
+        background-color: orange;
+    }
+    
+    svg {
+        border-color: black;
+        border-radius: 5px;
+        box-shadow: 0px 0px 2px 0px black; 
+    }
+    
+    text {
+        font-family: Helvetica;
+        font-size: 5px;
+        text-anchor: left;
+    }
+    
+    .hidden { 
+        display: none; 
+    }
+    
+    
+    div.tooltip {
+      color: #222; 
+      background: #fff; 
+      padding: .5em; 
+      text-shadow: #f5f5f5 0 1px 0;
+      border-radius: 2px; 
+      box-shadow: 0px 0px 2px 0px #a6a6a6; 
+      opacity: 1; 
+      position: absolute;
+      left: 25px;
+      top: 100px;
+      font-size: 20px;
+    }
+    
+    </style>
+    
+</head>
+
+<body>
+
+    <script>
+    
+        var width = 1600;
+        var height = 800;
+        
+        function scale (scaleFactor) {
+            return d3.geo.transform({
+                point: function(x, y) {
+                    this.stream.point(x * scaleFactor, y  * scaleFactor);
+                }
+            });
+        }
+        
+        var path = d3.geo.path()
+            .projection(scale(2));
+            
+        var colorscale = d3.scale.linear()
+            .domain([0, 40])
+            .range(["yellow", "red"]);
+            
+        var title = d3.select("body").append("h1")
+            .html("Erwähnungen Schweizer Ortschaften in Königsfelder Urkunden");
+            
+        var map_div = d3.select("body").append("div");
+            
+        var canvas = map_div.append("svg")
+            .style("background-color", "lightyellow")
+            .attr("width", width)
+            .attr("height", height)
+            .call(d3.behavior.zoom()
+            .on("zoom", redraw))
+            .append("g");
+            
+        var tooltip = map_div.append("div")
+            .attr("class", "tooltip");
+            
+        var map = canvas.append("g");
+            
+        d3.json("ch_mod.json", function (error, ch) {
+            
+            var cantons = topojson.feature(ch, ch.objects.cantons);
+            var comms = topojson.feature(ch, ch.objects.municipalities);
+                
+            //~ canvas.append("path")
+                //~ .datum(topojson.mesh(ch, ch.objects.municipalities, function (a, b) { return a !== b; }))
+                //~ .attr("class", "municipality-boundaries")
+                //~ .attr("fill", "none")
+                //~ .attr("stroke", "black")
+                //~ .attr("stroke-width", 0.3)
+                //~ .attr("d", path);
+                
+            var munis = canvas.selectAll(".comm")
+                .data(topojson.feature(ch, ch.objects.municipalities).features);
+                
+            munis.enter()
+                    .append("circle")
+                    .attr("class", "comm")
+                    .attr("transform", function (d) { return "translate(" + path.centroid(d) + ")"; })
+                    .attr("r", function (d) { return d.properties.occ + "px" })
+                    .style("opacity", "0.5")
+                    .style("fill", "orange")
+                    .style("stroke", "black")
+                    .style("stroke-width", "0.2px")
+                    //~ .style("fill", function (d) { return colorscale(d.properties.occ) })
+                    .style("display", function (d) { return d.properties.occ > 0 ? "block" : "none"})
+            
+            munis.enter()
+                    .append("circle")
+                    .attr("class", "comm")
+                    .attr("transform", function (d) { return "translate(" + path.centroid(d) + ")"; })
+                    .attr("r", function (d) { return d.properties.name == "Windisch" ? "2px" : "1px" })
+                    .style("opacity", "1")
+                    .style("stroke", "black")
+                    .style("stroke-width", "0.5px")
+                    .style("fill", function (d) { return colorscale(d.properties.occ) })
+                    //~ .style("background-image", "radial-gradient(white, grey)")
+                    .style("display", function (d) { return d.properties.occ > 0 ? "block" : "none"})
+                    
+            munis.on("mousemove", function(d,i) {
+                var mouse = d3.mouse(canvas.node()).map( function(d) { return parseInt(d); } );
+
+                tooltip.classed("hidden", false);
+                if (d.properties.occ > 1) {
+                    tooltip.html(d.properties.name + " (" + d.properties.occ + " Erwähnungen)");
+                } else {
+                    tooltip.html(d.properties.name + " (" + d.properties.occ + " Erwähnung)");
+                }
+                })
+                .on("mouseout",  function(d,i) {
+                    tooltip.classed("hidden", true)
+            });
+            
+            canvas.selectAll(".lake")
+                .data(topojson.feature(ch, ch.objects.lakes).features)
+                .enter()
+                    .append("path")
+                    .attr("class", "lake")
+                    .attr("d", path)
+                    .style("fill", "lightblue");
+                
+            canvas.append("path")
+                .datum(topojson.mesh(ch, ch.objects.lakes))
+                .attr("class", "lake-boundaries")
+                .attr("fill", "none")
+                .attr("stroke", "black")
+                .attr("stroke-width", "0.2px")
+                .attr("d", path);
+                
+            canvas.append("path")
+                .datum(topojson.feature(ch, ch.objects.country))
+                .attr("class", "country")
+                .style("fill", "none")
+                .style("stroke", "black")
+                .attr("d", path);
+                
+            canvas.selectAll(".canton")
+                .data(topojson.feature(ch, ch.objects.cantons).features)
+                .enter()
+                    .append("path")
+                    .attr("class", "canton")
+                    .attr("d", path)
+                    .style("fill", "none");
+                                
+            canvas.append("path")
+                .datum(topojson.mesh(ch, ch.objects.cantons, function (a, b) { return a !== b; }))
+                .attr("class", "canton-boundaries")
+                .attr("fill", "none")
+                .attr("stroke", "black")
+                .attr("stroke-width", 1)
+                .attr("d", path);
+                
+            canvas.selectAll("text")
+                .data(comms.features)
+                .enter()
+                    .append("text")
+                    .attr("class", function (d) { return d.properties.occ > 0 ? "placename" : "noname"})
+                    .attr("transform", function (d) { return "translate(" + path.centroid(d) + ")"; })
+                    //~ .attr("dy", ".35em")
+                    .attr("x", "0.7em")
+                    .style("font-size", "2px")
+                    .text(function (d) { return d.properties.occ > 0 ? d.properties.name : "" })
+                    .style("display", "none");
+                
+            //~ canvas.selectAll("text")
+                //~ .data(cantons.features)
+                //~ .enter()
+                    //~ .append("text")
+                    //~ .attr("transform", function (d) { return "translate(" + path.centroid(d) + ")"; })
+                    //~ .attr("dy", ".35em")
+                    //~ .text(function (d) { return d.properties.name });
+            
+        });
+        
+        function redraw() {
+            canvas.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+        };
+        
+        function togglenames(c) {
+            var placenames = canvas.selectAll(c);
+            
+            placenames.each(function(d) {
+                if (d3.select(this).style("display") != "none") {
+                    d3.select(this).style("display", "none");
+                } else {
+                    d3.select(this).style("display", "block");
+                }
+            });
+        };
+        
+        d3.select("body")
+            .append("input")
+            .attr("type","button")
+            .attr("value","Namen anzeigen/ausblenden")
+            .attr("id", "togglenames")
+            .attr("onclick", "togglenames('.placename');");
+            
+        d3.select("body")
+            .append("input")
+            .attr("type","button")
+            .attr("value","Kantonsgrenzen anzeigen/ausblenden")
+            .attr("id", "togglecantons")
+            .attr("onclick", "togglenames('.canton-boundaries');");
+                
+    </script>
+
+</body>
