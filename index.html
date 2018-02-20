@@ -10,7 +10,7 @@
     <style>
         
     body {
-        background-color: orange;
+        background-color: lightgreen;
     }
     
     svg {
@@ -51,7 +51,7 @@
 <body>
 
     <script>
-    
+        
         var width = 1600;
         var height = 800;
         
@@ -83,59 +83,66 @@
             .on("zoom", redraw))
             .append("g");
             
+        var map = canvas.append("g");
+            
         var tooltip = map_div.append("div")
             .attr("class", "tooltip");
             
-        var map = canvas.append("g");
+        var ch_comms;
+        var start_date = "0";
+        var end_date = "2000";
             
         d3.json("ch_mod.json", function (error, ch) {
+            
+            ch_comms = ch.objects.municipalities.geometries
             
             var cantons = topojson.feature(ch, ch.objects.cantons);
             var comms = topojson.feature(ch, ch.objects.municipalities);
                 
-            //~ canvas.append("path")
-                //~ .datum(topojson.mesh(ch, ch.objects.municipalities, function (a, b) { return a !== b; }))
-                //~ .attr("class", "municipality-boundaries")
-                //~ .attr("fill", "none")
-                //~ .attr("stroke", "black")
-                //~ .attr("stroke-width", 0.3)
-                //~ .attr("d", path);
-                
             var munis = canvas.selectAll(".comm")
                 .data(topojson.feature(ch, ch.objects.municipalities).features);
                 
-            munis.enter()
+            var circles = canvas.selectAll(".circle")
+                .data(topojson.feature(ch, ch.objects.municipalities).features);
+                
+            circles.enter()
                     .append("circle")
-                    .attr("class", "comm")
+                    .attr("class", "circle")
+                    .attr("id", function (d) { return "circle"+d.id })
                     .attr("transform", function (d) { return "translate(" + path.centroid(d) + ")"; })
-                    .attr("r", function (d) { return d.properties.occ + "px" })
                     .style("opacity", "0.5")
-                    .style("fill", "orange")
+                    .style("fill", "green")
                     .style("stroke", "black")
                     .style("stroke-width", "0.2px")
-                    //~ .style("fill", function (d) { return colorscale(d.properties.occ) })
-                    .style("display", function (d) { return d.properties.occ > 0 ? "block" : "none"})
+                    .style("display", "none");
             
             munis.enter()
                     .append("circle")
                     .attr("class", "comm")
+                    .attr("id", function (d) { return "comm"+d.id })
                     .attr("transform", function (d) { return "translate(" + path.centroid(d) + ")"; })
                     .attr("r", function (d) { return d.properties.name == "Windisch" ? "2px" : "1px" })
                     .style("opacity", "1")
                     .style("stroke", "black")
                     .style("stroke-width", "0.5px")
-                    .style("fill", function (d) { return colorscale(d.properties.occ) })
-                    //~ .style("background-image", "radial-gradient(white, grey)")
-                    .style("display", function (d) { return d.properties.occ > 0 ? "block" : "none"})
+                    .style("display", "none");
                     
             munis.on("mousemove", function(d,i) {
                 var mouse = d3.mouse(canvas.node()).map( function(d) { return parseInt(d); } );
+                
+                var counter = 0;
+                for (var j = 0; j < d.properties.mentions.length; j++) {
+                    var mention = d.properties.mentions[j]
+                    if (start_date < parseInt(mention.date) && parseInt(mention.date) < end_date) {
+                        counter++;
+                    };
+                };
 
                 tooltip.classed("hidden", false);
-                if (d.properties.occ > 1) {
-                    tooltip.html(d.properties.name + " (" + d.properties.occ + " Erwähnungen)");
+                if (counter > 1) {
+                    tooltip.html(d.properties.name + " (" + counter + " Erwähnungen)");
                 } else {
-                    tooltip.html(d.properties.name + " (" + d.properties.occ + " Erwähnung)");
+                    tooltip.html(d.properties.name + " (" + counter + " Erwähnung)");
                 }
                 })
                 .on("mouseout",  function(d,i) {
@@ -178,34 +185,63 @@
                 .attr("class", "canton-boundaries")
                 .attr("fill", "none")
                 .attr("stroke", "black")
-                .attr("stroke-width", 1)
+                .attr("stroke-width", 0.5)
                 .attr("d", path);
                 
             canvas.selectAll("text")
                 .data(comms.features)
                 .enter()
                     .append("text")
-                    .attr("class", function (d) { return d.properties.occ > 0 ? "placename" : "noname"})
+                    .attr("class", "noname")
+                    .attr("id", function (d) { return "text"+d.id })
                     .attr("transform", function (d) { return "translate(" + path.centroid(d) + ")"; })
-                    //~ .attr("dy", ".35em")
                     .attr("x", "0.7em")
                     .style("font-size", "2px")
-                    .text(function (d) { return d.properties.occ > 0 ? d.properties.name : "" })
                     .style("display", "none");
                 
-            //~ canvas.selectAll("text")
-                //~ .data(cantons.features)
-                //~ .enter()
-                    //~ .append("text")
-                    //~ .attr("transform", function (d) { return "translate(" + path.centroid(d) + ")"; })
-                    //~ .attr("dy", ".35em")
-                    //~ .text(function (d) { return d.properties.name });
+            filterdatapoints(start_date, end_date);
+            
+            console.log("Finished");
             
         });
+        
+        function filterdatapoints(start, end) {
+            for (var i = 0; i < ch_comms.length; i++) {
+                var info = ch_comms[i];
+                var counter = 0;
+                if (info.properties.mentions.length > 0) {
+                    for (var j = 0; j < info.properties.mentions.length; j++) {
+                        var mention = info.properties.mentions[j]
+                        if (start < parseInt(mention.date) && parseInt(mention.date) < end) {
+                            counter++;
+                        };
+                    };
+                };
+                var inner_circle = d3.select("#comm"+ch_comms[i].id);
+                var outer_circle = d3.select("#circle"+ch_comms[i].id);
+                var placename = d3.select("#text"+ch_comms[i].id);
+                if (counter > 0) {
+                    inner_circle.style("display", "block");
+                    inner_circle.style("fill", function (d) { return colorscale(counter) });
+                    outer_circle.style("display", "block");
+                    outer_circle.attr("r", function (d) { return counter + "px" });
+                    placename.attr("class", "placename");
+                    placename.text(info.properties.name);
+                } else {
+                    inner_circle.style("display", "none");
+                    inner_circle.style("fill", function (d) { return colorscale(counter) });
+                    outer_circle.style("display", "none");
+                    outer_circle.attr("r", function (d) { return counter + "px" });
+                    placename.attr("class", "noname");
+                    placename.text("");
+                };
+            };
+        };
         
         function redraw() {
             canvas.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
         };
+        
         
         function togglenames(c) {
             var placenames = canvas.selectAll(c);
@@ -218,6 +254,14 @@
                 }
             });
         };
+        
+        function onClickFilterDate() {
+            start_date = document.getElementById("startDate").value;
+            end_date = document.getElementById("endDate").value;
+            filterdatapoints(start_date, end_date);
+            return false;
+        }
+ 
         
         d3.select("body")
             .append("input")
@@ -232,7 +276,35 @@
             .attr("value","Kantonsgrenzen anzeigen/ausblenden")
             .attr("id", "togglecantons")
             .attr("onclick", "togglenames('.canton-boundaries');");
+            
+        var date_filter = d3.select("body")
+            .append("form")
+            .attr("name", "Datumsfilter")
+            .attr("onSubmit", "return onClickFilterDate()");
+            
+        date_filter.append("input")
+            .attr("type", "number")
+            .attr("id", "startDate")
+            .attr("placeholder", "Frühestes Jahr");
+            
+        date_filter.append("input")
+            .attr("type", "number")
+            .attr("id", "endDate")
+            .attr("placeholder", "Spätestes Jahr");
+            
+        date_filter.append("input")
+            .attr("type", "submit")
+            .attr("value", "Filtere nach Jahreszahlen")
+            .attr("name", "Submit");
                 
     </script>
+    
+<!--
+    <form name="myform" onSubmit="return handleClick()">
+            <input name="Submit"  type="submit" value="Add to list" >
+            <input type="text" id="myVal" placeholder="Add some text&hellip;">
+        </form>
+-->
+
 
 </body>

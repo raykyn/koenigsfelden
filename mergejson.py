@@ -13,21 +13,14 @@ c = Counter()
 
 ch = json.load(open("ch.json"))
 
-with open("placenames.tsv") as placenames:
-    reader = csv.reader(placenames, delimiter="\t")
-    for row in reader:
-        if row[3] not in ["???", "DE"]:
-            c[row[3]] += int(row[1])
-        
-#~ print(ch["objects"]["municipalities"]["geometries"][0]["properties"]["name"])
+mentions = json.load(open("mentions.json"))
 
 for element in ch["objects"]["municipalities"]["geometries"]:
     name = element["properties"]["name"]
-    
-    if name in c:
-        element["properties"]["occ"] = c[name]
+    if name in mentions:
+        element["properties"]["mentions"] =  sorted(mentions[name], key=lambda x: x["date"])
     else:
-        element["properties"]["occ"] = 0
-        
-with open("ch_mod.json", mode="w") as out:
+        element["properties"]["mentions"] = []
+    
+with open("ch_mod_new.json", mode="w") as out:
     json.dump(ch, out)
