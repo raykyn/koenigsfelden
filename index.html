@@ -6,6 +6,7 @@
     <title>Königsfelden Ortschaften</title>
     <script src="http://d3js.org/d3.v3.min.js"></script>
     <script src="http://d3js.org/topojson.v1.min.js"></script>
+    <script src="http://d3js.org/d3-queue.v3.min.js"></script>
     
     <style>
         
@@ -52,7 +53,7 @@
 
     <script>
         
-        var width = 1600;
+        var width = "60%";
         var height = 800;
         
         function scale (scaleFactor) {
@@ -89,12 +90,18 @@
             .attr("class", "tooltip");
             
         var ch_comms;
+        var de_comms;
         var start_date = "0";
         var end_date = "2000";
             
-        d3.json("ch_mod.json", function (error, ch) {
+        d3.queue()
+        .defer(d3.json, "ch_mod_new.json")
+        .defer(d3.json, "de_places.json")
+        .await( function (error, ch, de) {
             
             ch_comms = ch.objects.municipalities.geometries
+            
+            de_comms = de
             
             var cantons = topojson.feature(ch, ch.objects.cantons);
             var comms = topojson.feature(ch, ch.objects.municipalities);
@@ -104,6 +111,12 @@
                 
             var circles = canvas.selectAll(".circle")
                 .data(topojson.feature(ch, ch.objects.municipalities).features);
+                
+            var de_munis = canvas.selectAll(".de_comm")
+                .data(de);
+                
+            var de_circles = canvas.selectAll(".de_circle")
+                .data(de);
                 
             circles.enter()
                     .append("circle")
@@ -127,6 +140,29 @@
                     .style("stroke-width", "0.5px")
                     .style("display", "none");
                     
+            de_circles.enter()
+                    .append("circle")
+                    .attr("class", "de_circle")
+                    .attr("id", function (d) { return "de_circle"+d.id })
+                    .attr("transform", function (d) { return "translate(" + d.coords + ")"; })
+                    .style("opacity", "0.5")
+                    .style("fill", "green")
+                    .style("stroke", "black")
+                    .style("stroke-width", "0.2px")
+                    .style("display", "none");
+
+            de_munis.enter()
+                    .append("circle")
+                    .attr("class", "de_comm")
+                    .attr("id", function (d) { return "de_comm"+d.id })
+                    .attr("transform", function (d) { return "translate(" + d.coords + ")"; })
+                    .attr("r", "1px")
+                    .style("opacity", "1")
+                    .style("stroke", "black")
+                    .style("stroke-width", "0.5px")
+                    .style("display", "none");
+                    
+                    
             munis.on("mousemove", function(d,i) {
                 var mouse = d3.mouse(canvas.node()).map( function(d) { return parseInt(d); } );
                 
@@ -143,6 +179,28 @@
                     tooltip.html(d.properties.name + " (" + counter + " Erwähnungen)");
                 } else {
                     tooltip.html(d.properties.name + " (" + counter + " Erwähnung)");
+                }
+                })
+                .on("mouseout",  function(d,i) {
+                    tooltip.classed("hidden", true)
+            });
+            
+            de_munis.on("mousemove", function(d,i) {
+                var mouse = d3.mouse(canvas.node()).map( function(d) { return parseInt(d); } );
+                
+                var counter = 0;
+                for (var j = 0; j < d.mentions.length; j++) {
+                    var mention = d.mentions[j]
+                    if (start_date < parseInt(mention.date) && parseInt(mention.date) < end_date) {
+                        counter++;
+                    };
+                };
+
+                tooltip.classed("hidden", false);
+                if (counter > 1) {
+                    tooltip.html(d.name + " (" + counter + " Erwähnungen)");
+                } else {
+                    tooltip.html(d.name + " (" + counter + " Erwähnung)");
                 }
                 })
                 .on("mouseout",  function(d,i) {
@@ -198,6 +256,17 @@
                     .attr("x", "0.7em")
                     .style("font-size", "2px")
                     .style("display", "none");
+                    
+            canvas.selectAll(".de_text")
+                .data(de)
+                .enter()
+                    .append("text")
+                    .attr("class", "noname")
+                    .attr("id", function (d) { return "de_text"+d.id })
+                    .attr("transform", function (d) { return "translate(" + d.coords + ")"; })
+                    .attr("x", "0.7em")
+                    .style("font-size", "2px")
+                    .style("display", "none");
                 
             filterdatapoints(start_date, end_date);
             
@@ -224,9 +293,40 @@
                     inner_circle.style("display", "block");
                     inner_circle.style("fill", function (d) { return colorscale(counter) });
                     outer_circle.style("display", "block");
-                    outer_circle.attr("r", function (d) { return counter + "px" });
+                    outer_circle.attr("r", function (d) { return Math.sqrt((counter * 50) / Math.PI) + "px" });
                     placename.attr("class", "placename");
                     placename.text(info.properties.name);
+                } else {
+                    inner_circle.style("display", "none");
+                    inner_circle.style("fill", function (d) { return colorscale(counter) });
+                    outer_circle.style("display", "none");
+                    outer_circle.attr("r", function (d) { return counter + "px" });
+                    placename.attr("class", "noname");
+                    placename.text("");
+                };
+            };
+            
+            for (var i = 0; i < de_comms.length; i++) {
+                var info = de_comms[i];
+                var counter = 0;
+                if (info.mentions.length > 0) {
+                    for (var j = 0; j < info.mentions.length; j++) {
+                        var mention = info.mentions[j]
+                        if (start < parseInt(mention.date) && parseInt(mention.date) < end) {
+                            counter++;
+                        };
+                    };
+                };
+                var inner_circle = d3.select("#de_comm"+de_comms[i].id);
+                var outer_circle = d3.select("#de_circle"+de_comms[i].id);
+                var placename = d3.select("#de_text"+de_comms[i].id);
+                if (counter > 0) {
+                    inner_circle.style("display", "block");
+                    inner_circle.style("fill", function (d) { return colorscale(counter) });
+                    outer_circle.style("display", "block");
+                    outer_circle.attr("r", function (d) { return Math.sqrt((counter * 50) / Math.PI) + "px" });
+                    placename.attr("class", "placename");
+                    placename.text(info.name);
                 } else {
                     inner_circle.style("display", "none");
                     inner_circle.style("fill", function (d) { return colorscale(counter) });
@@ -298,13 +398,7 @@
             .attr("name", "Submit");
                 
     </script>
-    
-<!--
-    <form name="myform" onSubmit="return handleClick()">
-            <input name="Submit"  type="submit" value="Add to list" >
-            <input type="text" id="myVal" placeholder="Add some text&hellip;">
-        </form>
--->
+
 
 
 </body>
