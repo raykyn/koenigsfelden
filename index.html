@@ -41,8 +41,32 @@
       opacity: 1; 
       position: absolute;
       left: 25px;
-      top: 100px;
+      top: 25px;
       font-size: 20px;
+    }
+    
+    .container {
+        display:inline-block;
+        position: relative;
+    }
+    
+    .foot {
+    }
+    
+    #info {
+        background-color: lightyellow;
+        border-color: black;
+        border-radius: 5px;
+        box-shadow: 0px 0px 2px 0px black; 
+        width: 400px;
+        height: 800px;
+        overflow: auto;
+    }
+    
+    div#map {
+        margin: 10px;
+        width: 1200px;
+        height: 800px;
     }
     
     </style>
@@ -53,7 +77,7 @@
 
     <script>
         
-        var width = "60%";
+        var width = 1200;
         var height = 800;
         
         function scale (scaleFactor) {
@@ -74,7 +98,9 @@
         var title = d3.select("body").append("h1")
             .html("Erwähnungen Schweizer Ortschaften in Königsfelder Urkunden");
             
-        var map_div = d3.select("body").append("div");
+        var map_div = d3.select("body").append("div")
+            .attr("class", "container")
+            .attr("id", "map");
             
         var canvas = map_div.append("svg")
             .style("background-color", "lightyellow")
@@ -83,6 +109,16 @@
             .call(d3.behavior.zoom()
             .on("zoom", redraw))
             .append("g");
+            
+        var info_div = d3.select("body").append("div")
+            .attr("class", "container")
+            .attr("id", "info");
+            
+        info_div.append("p")
+            .html("Diese interaktive Karte zeigt alle Orte, die in den Urkunden des Königsfelden-Projekts am Historischen Institut der Universität Zürich ausgemacht wurden. Die Fläche der äusseren Kreise entspricht hierbei der Zahl der Nennungen.<br>Per Klick auf eine Ortschaft erhalten Sie zusätzliche Informationen.<br>(Diese Karte ist noch ein Prototyp ebenso wie der Datensatz, auf dem sie basiert nur ein Auszug des geplanten Datensatzes ist.)");
+                        
+        var button_filter_div = d3.select("body").append("div")
+            .attr("class", "foot");
             
         var map = canvas.append("g");
             
@@ -206,6 +242,40 @@
                 .on("mouseout",  function(d,i) {
                     tooltip.classed("hidden", true)
             });
+            
+            munis.on("click", function(d) {
+                var mouse = d3.mouse(canvas.node()).map( function(d) { return parseInt(d); } );
+                
+                mentions = d.properties.mentions;
+                
+                show_info(mentions)
+            });
+            
+            de_munis.on("click", function(d) {
+                var mouse = d3.mouse(canvas.node()).map( function(d) { return parseInt(d); } );
+                
+                mentions = d.mentions;
+                
+                show_info(mentions)
+            });
+            
+            function show_info(mentions) {
+                // clear old content
+                info_div.selectAll("p").remove()
+                // write new content
+                for (var i = 0; i < mentions.length; i++) {
+                    var mention = mentions[i];
+                    if (start_date < parseInt(mention.date) && parseInt(mention.date) < end_date) {
+                        var name = "<b>Name:</b> " + mention.name;
+                        var date = "<b>Jahr:</b> " + mention.date;
+                        var file = "<b>Urkunde:</b> " + mention.file;
+                        var para = info_div.append("p")
+                        
+                        para.html(name + "<br>" + date + "<br>" + file);
+                    }
+                }
+            };
+            
             
             canvas.selectAll(".lake")
                 .data(topojson.feature(ch, ch.objects.lakes).features)
@@ -363,21 +433,21 @@
         }
  
         
-        d3.select("body")
+        button_filter_div
             .append("input")
             .attr("type","button")
             .attr("value","Namen anzeigen/ausblenden")
             .attr("id", "togglenames")
             .attr("onclick", "togglenames('.placename');");
             
-        d3.select("body")
+        button_filter_div
             .append("input")
             .attr("type","button")
             .attr("value","Kantonsgrenzen anzeigen/ausblenden")
             .attr("id", "togglecantons")
             .attr("onclick", "togglenames('.canton-boundaries');");
             
-        var date_filter = d3.select("body")
+        var date_filter = button_filter_div
             .append("form")
             .attr("name", "Datumsfilter")
             .attr("onSubmit", "return onClickFilterDate()");
